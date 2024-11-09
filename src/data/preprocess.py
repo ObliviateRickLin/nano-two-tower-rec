@@ -105,8 +105,13 @@ def main():
     # 设置较小的样本量以适应Kaggle环境
     sample_size = 100000  # 可以根据Kaggle内存调整这个数值
     
+    # 设置数据路径
+    data_dir = Path("../input/yelp-dataset")  # Kaggle数据集的标准路径
+    output_dir = Path("../working/data/processed")
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
     # 加载采样后的数据
-    reviews, users, businesses = load_raw_data('data/raw', sample_size=sample_size)
+    reviews, users, businesses = load_raw_data(data_dir, sample_size=sample_size)
     print(f"加载的评论数量: {len(reviews)}")
     print(f"相关用户数量: {len(users)}")
     print(f"相关商家数量: {len(businesses)}")
@@ -116,10 +121,6 @@ def main():
     
     # 分割数据
     train, valid, test = split_data(reviews)
-    
-    # 保存处理后的数据
-    output_dir = Path('data/processed')
-    output_dir.mkdir(parents=True, exist_ok=True)
     
     # 保存处理后的数据
     train.to_csv(output_dir / 'train_interactions.csv', index=False)

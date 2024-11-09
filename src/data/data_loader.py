@@ -65,7 +65,7 @@ class YelpDataset(Dataset):
         row = self.data.iloc[idx]
         user_idx = row['user_idx']
         business_idx = row['business_idx']
-        rating = row['stars']
+        rating = row['stars_x']
         
         return {
             'user_ids': torch.tensor(user_idx, dtype=torch.long),

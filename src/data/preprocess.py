@@ -5,101 +5,97 @@ from sklearn.model_selection import train_test_split
 from typing import Tuple
 
 def load_raw_data(data_dir: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Load raw AliEC dataset"""
+    """加载Yelp原始数据集"""
     data_dir = Path(data_dir)
     
-    # Load interactions
-    interactions = pd.read_csv(data_dir / 'user_behaviors.csv')
+    # 加载评论数据（作为交互数据）
+    reviews = pd.read_json(data_dir / 'yelp_academic_dataset_review.json', lines=True)
+    reviews = reviews[['user_id', 'business_id', 'stars', 'date']]
     
-    # Load user features
-    user_features = pd.read_csv(data_dir / 'user_profiles.csv')
+    # 加载用户数据
+    users = pd.read_json(data_dir / 'yelp_academic_dataset_user.json', lines=True)
+    users = users[['user_id', 'review_count', 'yelping_since', 'average_stars']]
     
-    # Load item features
-    item_features = pd.read_csv(data_dir / 'item_info.csv')
+    # 加载商家数据
+    businesses = pd.read_json(data_dir / 'yelp_academic_dataset_business.json', lines=True)
+    businesses = businesses[['business_id', 'stars', 'review_count', 'categories']]
     
-    return interactions, user_features, item_features
+    return reviews, users, businesses
 
 def process_features(
-    interactions: pd.DataFrame,
-    user_features: pd.DataFrame,
-    item_features: pd.DataFrame
+    reviews: pd.DataFrame,
+    users: pd.DataFrame,
+    businesses: pd.DataFrame
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Process user and item features"""
+    """处理特征"""
     
-    # Process user features
-    user_features['age_bucket'] = pd.qcut(user_features['age'], q=10, labels=False)
-    user_features = pd.get_dummies(user_features, columns=['gender', 'age_bucket'])
+    # 处理用户特征
+    users['yelping_days'] = (pd.to_datetime('now') - pd.to_datetime(users['yelping_since'])).dt.days
+    users = users.drop('yelping_since', axis=1)
     
-    # Process item features
-    item_features['price_bucket'] = pd.qcut(item_features['price'], q=10, labels=False)
-    item_features = pd.get_dummies(
-        item_features,
-        columns=['category_id', 'price_bucket']
-    )
+    # 处理商家特征
+    # 将categories转换为one-hot编码
+    businesses['categories'] = businesses['categories'].fillna('')
+    categories = businesses['categories'].str.split(', ')
+    top_categories = set()
+    for cats in categories:
+        if isinstance(cats, list):
+            top_categories.update(cats)
+    top_categories = list(top_categories)[:10]  # 只使用前10个类别
     
-    return interactions, user_features, item_features
+    for cat in top_categories:
+        businesses[f'cat_{cat}'] = businesses['categories'].str.contains(cat, regex=False).astype(int)
+    
+    businesses = businesses.drop('categories', axis=1)
+    
+    return reviews, users, businesses
 
 def split_data(
-    interactions: pd.DataFrame,
+    reviews: pd.DataFrame,
     train_ratio: float = 0.8,
     valid_ratio: float = 0.1,
     time_based: bool = True
 ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """Split data into train/valid/test sets"""
+    """将数据分割为训练/验证/测试集"""
     
     if time_based:
-        # Sort by timestamp
-        interactions = interactions.sort_values('timestamp')
+        reviews['date'] = pd.to_datetime(reviews['date'])
+        reviews = reviews.sort_values('date')
         
-        # Calculate split points
-        n = len(interactions)
+        n = len(reviews)
         train_idx = int(n * train_ratio)
         valid_idx = int(n * (train_ratio + valid_ratio))
         
-        # Split data
-        train = interactions.iloc[:train_idx]
-        valid = interactions.iloc[train_idx:valid_idx]
-        test = interactions.iloc[valid_idx:]
+        train = reviews.iloc[:train_idx]
+        valid = reviews.iloc[train_idx:valid_idx]
+        test = reviews.iloc[valid_idx:]
     else:
-        # Random split
-        train, temp = train_test_split(
-            interactions,
-            train_size=train_ratio,
-            random_state=42
-        )
-        valid, test = train_test_split(
-            temp,
-            train_size=valid_ratio/(1-train_ratio),
-            random_state=42
-        )
+        train, temp = train_test_split(reviews, train_size=train_ratio, random_state=42)
+        valid, test = train_test_split(temp, train_size=valid_ratio/(1-train_ratio), random_state=42)
     
     return train, valid, test
 
 def main():
-    """Main preprocessing function"""
-    # Load raw data
-    interactions, user_features, item_features = load_raw_data('data/raw')
+    """主预处理函数"""
+    # 加载原始数据
+    reviews, users, businesses = load_raw_data('data/raw')
     
-    # Process features
-    interactions, user_features, item_features = process_features(
-        interactions,
-        user_features,
-        item_features
-    )
+    # 处理特征
+    reviews, users, businesses = process_features(reviews, users, businesses)
     
-    # Split data
-    train, valid, test = split_data(interactions)
+    # 分割数据
+    train, valid, test = split_data(reviews)
     
-    # Create output directory
+    # 创建输出目录
     output_dir = Path('data/processed')
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Save processed data
+    # 保存处理后的数据
     train.to_csv(output_dir / 'train_interactions.csv', index=False)
     valid.to_csv(output_dir / 'valid_interactions.csv', index=False)
     test.to_csv(output_dir / 'test_interactions.csv', index=False)
-    user_features.to_csv(output_dir / 'user_features.csv', index=False)
-    item_features.to_csv(output_dir / 'item_features.csv', index=False)
+    users.to_csv(output_dir / 'user_features.csv', index=False)
+    businesses.to_csv(output_dir / 'business_features.csv', index=False)
 
 if __name__ == '__main__':
     main() 

@@ -4,21 +4,46 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 from typing import Tuple
 
-def load_raw_data(data_dir: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """加载Yelp原始数据集"""
+def load_raw_data(data_dir: str, sample_size: int = 100000) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """加载Yelp原始数据集的子集
+    
+    Args:
+        data_dir: 数据目录路径
+        sample_size: 要采样的评论数量
+    """
     data_dir = Path(data_dir)
     
-    # 加载评论数据（作为交互数据）
-    reviews = pd.read_json(data_dir / 'yelp_academic_dataset_review.json', lines=True)
-    reviews = reviews[['user_id', 'business_id', 'stars', 'date']]
+    # 分块读取评论数据并随机采样
+    chunks = pd.read_json(data_dir / 'yelp_academic_dataset_review.json', lines=True, chunksize=10000)
+    sampled_reviews = []
+    total_rows = 0
     
-    # 加载用户数据
-    users = pd.read_json(data_dir / 'yelp_academic_dataset_user.json', lines=True)
-    users = users[['user_id', 'review_count', 'yelping_since', 'average_stars']]
+    for chunk in chunks:
+        if total_rows >= sample_size:
+            break
+        sample_size_chunk = min(len(chunk), sample_size - total_rows)
+        sampled_chunk = chunk.sample(n=sample_size_chunk)
+        sampled_reviews.append(sampled_chunk)
+        total_rows += sample_size_chunk
     
-    # 加载商家数据
-    businesses = pd.read_json(data_dir / 'yelp_academic_dataset_business.json', lines=True)
-    businesses = businesses[['business_id', 'stars', 'review_count', 'categories']]
+    reviews = pd.concat(sampled_reviews)[['user_id', 'business_id', 'stars', 'date']]
+    
+    # 获取采样数据中的唯一用户和商家ID
+    unique_users = reviews['user_id'].unique()
+    unique_businesses = reviews['business_id'].unique()
+    
+    # 只加载相关的用户和商家数据
+    users = []
+    for chunk in pd.read_json(data_dir / 'yelp_academic_dataset_user.json', lines=True, chunksize=10000):
+        relevant_users = chunk[chunk['user_id'].isin(unique_users)]
+        users.append(relevant_users)
+    users = pd.concat(users)[['user_id', 'review_count', 'yelping_since', 'average_stars']]
+    
+    businesses = []
+    for chunk in pd.read_json(data_dir / 'yelp_academic_dataset_business.json', lines=True, chunksize=10000):
+        relevant_businesses = chunk[chunk['business_id'].isin(unique_businesses)]
+        businesses.append(relevant_businesses)
+    businesses = pd.concat(businesses)[['business_id', 'stars', 'review_count', 'categories']]
     
     return reviews, users, businesses
 
@@ -77,8 +102,14 @@ def split_data(
 
 def main():
     """主预处理函数"""
-    # 加载原始数据
-    reviews, users, businesses = load_raw_data('data/raw')
+    # 设置较小的样本量以适应Kaggle环境
+    sample_size = 100000  # 可以根据Kaggle内存调整这个数值
+    
+    # 加载采样后的数据
+    reviews, users, businesses = load_raw_data('data/raw', sample_size=sample_size)
+    print(f"加载的评论数量: {len(reviews)}")
+    print(f"相关用户数量: {len(users)}")
+    print(f"相关商家数量: {len(businesses)}")
     
     # 处理特征
     reviews, users, businesses = process_features(reviews, users, businesses)
@@ -86,7 +117,7 @@ def main():
     # 分割数据
     train, valid, test = split_data(reviews)
     
-    # 创建输出目录
+    # 保存处理后的数据
     output_dir = Path('data/processed')
     output_dir.mkdir(parents=True, exist_ok=True)
     
@@ -96,6 +127,11 @@ def main():
     test.to_csv(output_dir / 'test_interactions.csv', index=False)
     users.to_csv(output_dir / 'user_features.csv', index=False)
     businesses.to_csv(output_dir / 'business_features.csv', index=False)
+    
+    print("数据预处理完成！")
+    print(f"训练集大小: {len(train)}")
+    print(f"验证集大小: {len(valid)}")
+    print(f"测试集大小: {len(test)}")
 
 if __name__ == '__main__':
     main() 

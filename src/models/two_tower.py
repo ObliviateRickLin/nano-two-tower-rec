@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from src.models.towers.user_tower import UserTower
 from src.models.towers.item_tower import ItemTower
-from typing import Tuple
+from typing import Tuple, Dict
 
 class TwoTowerModel(nn.Module):
     """Two-tower recommendation model"""
@@ -24,11 +24,17 @@ class TwoTowerModel(nn.Module):
             dropout=config['item_tower']['dropout']
         )
         
-    def forward(
-        self,
-        user_ids: torch.Tensor,
-        item_ids: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        user_embeddings = self.user_tower(user_ids)
-        item_embeddings = self.item_tower(item_ids)
+    def forward(self, batch: Dict[str, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
+        # 从batch中提取特征
+        user_ids = batch['user_features'][:, 0].long()  # 第一列是user_idx
+        user_features = batch['user_features'][:, 1:]   # 其余列是统计特征
+        
+        business_ids = batch['business_features'][:, 0].long()  # 第一列是business_idx
+        business_features = batch['business_features'][:, 1:]   # 其余列是统计特征
+        category_features = batch['category_features']
+        
+        # 分别通过两个塔
+        user_embeddings = self.user_tower(user_ids, user_features)
+        item_embeddings = self.item_tower(business_ids, business_features, category_features)
+        
         return user_embeddings, item_embeddings 

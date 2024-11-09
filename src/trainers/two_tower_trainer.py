@@ -2,8 +2,8 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from .base_trainer import BaseTrainer
-from utils.losses import InfoNCELoss
-from utils.metrics import compute_metrics
+from src.utils.losses import InfoNCELoss
+from src.utils.metrics import compute_metrics
 
 class TwoTowerTrainer(BaseTrainer):
     """Trainer class for two-tower model"""

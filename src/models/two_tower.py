@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
-from models.towers.user_tower import UserTower
-from models.towers.item_tower import ItemTower
+from src.models.towers.user_tower import UserTower
+from src.models.towers.item_tower import ItemTower
 from typing import Tuple
 
 class TwoTowerModel(nn.Module):

@@ -9,8 +9,8 @@ if src_path not in sys.path:
 
 import torch
 import pytest
-from models.two_tower import TwoTowerModel
-from utils.config import DEFAULT_CONFIG
+from src.models.two_tower import TwoTowerModel
+from src.utils.config import DEFAULT_CONFIG
 
 class TestTwoTowerModel:
     """Test shape consistency of two-tower model"""
